@@ -1,3 +1,4 @@
+from itertools import product
 from amazon_config import (
     get_web_driver_options,
     get_chrome_web_driver,
@@ -45,10 +46,71 @@ class AmazonAPI:
         products = self.get_product_info(links)
         self.driver.quit()
         
-        
-    def get_products_info(self,links):    
-        asins = self.get_asins(links)
-        
+    
+    def get_single_product_info(self, asin):
+        print(f"Product ID: {asin} - getting data...")
+        product_short_url = self.shorten_url(asin)
+        self.driver.get(f'{product_short_url}?language=en_GB')
+        time.sleep(2)
+        title = self.get_title()
+        seller = self.get_seller()
+        price = self.get_price()
+        if title and seller and price:
+            product_info = {
+                'asin': asin,
+                'url': product_short_url,
+                'title': title,
+                'seller': seller,
+                'price': price
+            }
+            return product_info
+        return None      
+    
+    def get_title(self):
+        try:
+            return self.driver.find_element_by_id('productTitle').text
+        except Exception as e:
+            print(e)
+            print(f"Can't get title of a product - {self.driver.current_url}")
+            return None 
+    
+    
+    
+    def get_seller(self):
+        try:
+            return self.driver.find_element_by_id('bylineInfo').text
+        except Exception as e:
+            print(e)
+            print(f"Can't get seller of a product - {self.driver.current_url}")
+            return None
+    
+    
+    def get_price(self):
+        price = None
+        try:
+            price = self.driver.find_element_by_id('priceblock_ourprice').text
+            price = self.convert_price(price)
+            
+        except NoSuchElementException:
+            try:
+                availability = self.driver.find_element_by_id('availability').text
+                if 'Available' in availability:
+                    price = self.driver.find_element_by_class_name('olp-padding-right').text
+                    price = price[price.find(self.currency):]
+                    price = self.convert_price(price)
+            except Exception as e:
+                print(e)
+                print(f"Can't get price of a product - {self.driver.current_url}")
+                return None
+        except Exception as e:
+            print(e)
+            print(f"Can't get price of a product - {self.driver.current_url}")
+            return None
+        return price
+            
+    def shorten_url(self,asin):
+        return self.base_url + 'dp/' + asin 
+     
         
     def get_asins(self,links):
         return [self.get_asins(link) for link in links]
